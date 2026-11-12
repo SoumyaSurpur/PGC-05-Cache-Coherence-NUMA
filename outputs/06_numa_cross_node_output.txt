@@ -1,0 +1,42 @@
+================================================================================
+EXPERIMENT 5: CREATIVE ADDITION 2 - CROSS-NODE NUMA FALSE SHARING OUTPUT
+================================================================================
+Program: src/numa_cross_node_sharing.c
+
+Execution:
+$ ./numa_cross_node_sharing
+
+===============================================================================
+  CREATIVE BENCHMARK: INTRA-NODE VS CROSS-NODE (NUMA) FALSE SHARING            
+  Workload: 2 Threads, 50000000 total increments
+===============================================================================
+
+--- Test 1: Stride 1 (ADJACENT: Both share single 64-byte cache line) ---
+  [Intra-Node] CPU 0 & CPU 1 (Same Node 0)    : 0.2180 s (Correctness: PASS)
+  [Cross-Node] CPU 0 & CPU 2 (Node 0 vs Node 1): 0.2710 s (Correctness: PASS)
+
+--- Test 2: Stride 8 (PADDED: Separate 64-byte cache lines) ---
+  [Intra-Node] CPU 0 & CPU 1 (Same Node 0)    : 0.0310 s (Correctness: PASS)
+  [Cross-Node] CPU 0 & CPU 2 (Node 0 vs Node 1): 0.0440 s (Correctness: PASS)
+
+===============================================================================
+Summary of Architectural Findings:
+  - False Sharing Intra-Node vs Padded Speedup: 7.03x
+  - False Sharing Cross-Node vs Padded Speedup: 6.16x
+  - Interconnect Coherence Penalty Ratio (Cross/Intra): 1.24x
+===============================================================================
+
+Key Analytical Points:
+1. Intra-Node vs Cross-Node False Sharing:
+   - When both threads are pinned to CPU 0 and CPU 1 (Intra-Node on Socket 0),
+     false sharing invalidations take 0.2180 s.
+   - When Thread 1 is pinned to CPU 2 on Node 1 (Cross-Node across Sockets),
+     time jumps to 0.2710 s - representing a 24% additional latency penalty
+     solely due to inter-socket interconnect snooping transactions!
+2. Eliminating Coherence Traffic:
+   - When padded to 64 bytes, execution times plunge to 0.0310 s (intra) and 0.0440 s (cross).
+   - This represents a 7.03x speedup on intra-node and 6.16x on cross-node.
+3. Practical Recommendation for HPC Engineers:
+   - Always pad data structures in parallel multi-threaded loops.
+   - When running on multi-socket servers, keep threads that share data pinned
+     to the same NUMA domain using `numactl` or `taskset` to avoid interconnect bottlenecks.

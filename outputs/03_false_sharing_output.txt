@@ -1,0 +1,37 @@
+================================================================================
+EXPERIMENT 5: FALSE SHARING BENCHMARK OUTPUT (PROGRAM 2)
+================================================================================
+Reference Screenshot:
+  - images/05_false_sharing_numa_sweep.png
+
+Commands:
+$ nano false_sharing.c
+$ gcc -O2 false_sharing.c -fopenmp -o false_sharing
+$ OMP_NUM_THREADS=2 ./false_sharing adjacent
+adjacent | threads=2 | total=100000000 | time=0.0147 s
+
+$ OMP_NUM_THREADS=2 ./false_sharing padded
+padded   | threads=2 | total=100000000 | time=0.0105 s
+
+================================================================================
+Analytical Points and Key Observations:
+1. Workload Scale:
+   - 100,000,000 increments total split evenly across 2 OpenMP threads
+     (50,000,000 increments per thread).
+2. Correctness:
+   - Both adjacent and padded layouts achieve the exact expected final sum of 100,000,000.
+   - False sharing is NOT a functional bug; it is purely a performance killer.
+3. Performance Comparison:
+   - Adjacent Execution Time: 0.0147 seconds.
+   - Padded Execution Time:   0.0105 seconds.
+   - Speedup with Padding:    1.40x faster (28.6% reduction in execution time)
+     even with only 2 threads.
+4. Underlying Mechanism:
+   - In adjacent layout, Thread 0 updates cnt[0] and Thread 1 updates cnt[1].
+     Because both `long` integers occupy the same 64-byte hardware cache line,
+     each write invalidates the remote core's cache line, forcing it to fetch
+     the updated line across the CPU interconnect.
+   - In padded layout, each thread's counter is separated by 8 longs (64 bytes),
+     mapping each to its own independent cache line. Once cached, each thread
+     writes locally in Modified state with zero cache ping-ponging!
+================================================================================

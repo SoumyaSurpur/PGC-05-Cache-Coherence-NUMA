@@ -1,0 +1,55 @@
+================================================================================
+EXPERIMENT 5: COMPREHENSIVE NUMA & FALSE SHARING COMPARISON (PROGRAM 4)
+================================================================================
+Reference Screenshot:
+  - images/06_compare_numa.png
+
+Commands:
+$ nano compare_numa.c
+$ gcc -O2 compare_numa.c -fopenmp -o compare_numa
+$ ./compare_numa
+
+Table 1: false sharing (100000000 increments in total)
+Layout   | Threads | Final Count | Correctness | Time (s)
+---------------------------------------------------------
+adjacent |       1 |   100000000 | Correct     |   0.0224
+padded   |       1 |   100000000 | Correct     |   0.0203
+---------------------------------------------------------
+adjacent |       2 |   100000000 | Correct     |   0.0142
+padded   |       2 |   100000000 | Correct     |   0.0110
+---------------------------------------------------------
+adjacent |       4 |   100000000 | Correct     |   0.0085
+padded   |       4 |   100000000 | Correct     |   0.0078
+---------------------------------------------------------
+
+Table 2: memory sweep of 512 MB (4 passes)
+Threads | Time (s)
+-------------------
+      1 |   0.1129
+      2 |   0.1049
+
+================================================================================
+Analytical Points and In-Depth Discussion:
+1. Table 1 Analysis (False Sharing Scalability across 1, 2, and 4 Threads):
+   - 1 Thread:
+     - Adjacent: 0.0224 s | Padded: 0.0203 s.
+     - With only 1 thread running, there is NO other core to cause false sharing.
+       The times are nearly identical (~2ms difference due to slight alignment efficiency).
+   - 2 Threads:
+     - Adjacent: 0.0142 s | Padded: 0.0110 s.
+     - Coherence traffic begins: Core 0 and Core 1 invalidate each other's cache lines.
+       Padding provides a ~1.29x speedup (22.5% time reduction).
+   - 4 Threads:
+     - Adjacent: 0.0085 s | Padded: 0.0078 s.
+     - Even with 4 threads dividing the 100M workload (25M increments each),
+       padded layout maintains an advantage. Padded time drops from 0.0203s (1T)
+       to 0.0078s (4T), exhibiting strong scaling (2.60x speedup).
+
+2. Table 2 Analysis (Memory Sweep Scalability):
+   - 1 Thread: 0.1129 s
+   - 2 Threads: 0.1049 s
+   - Memory bandwidth saturation: Memory-bound workloads (like streaming through
+     a 512 MB buffer) quickly saturate the memory controller bus bandwidth. Adding
+     threads from 1 to 2 yields modest speedup (0.1129s -> 0.1049s) because the
+     bottleneck is DRAM bus throughput rather than CPU compute cycles.
+================================================================================

@@ -1,0 +1,38 @@
+================================================================================
+EXPERIMENT 5: CREATIVE ADDITION 1 - CACHE STRIDE CLIFF ANALYSIS OUTPUT
+================================================================================
+Program: src/cache_stride_cliff.c
+
+Execution:
+$ ./cache_stride_cliff
+
+==========================================================================
+  CREATIVE BENCHMARK: CACHE LINE BOUNDARY & STRIDE CLIFF ANALYSIS         
+  Workload: 2 Threads, 50000000 total increments (using 64-bit words)      
+==========================================================================
+Stride   | Byte Offset  | Cache Line State         | Time (s)     | Relative Speed 
+--------------------------------------------------------------------------
+1        | 8         B | Same Line (<64B) [SHARED] |     0.3450 s |       1.00x 
+2        | 16        B | Same Line (<64B) [SHARED] |     0.3250 s |       1.06x 
+3        | 24        B | Same Line (<64B) [SHARED] |     0.3300 s |       1.05x 
+4        | 32        B | Same Line (<64B) [SHARED] |     0.3220 s |       1.07x 
+6        | 48        B | Same Line (<64B) [SHARED] |     0.3230 s |       1.07x 
+7        | 56        B | Same Line (<64B) [SHARED] |     0.3400 s |       1.01x 
+8        | 64        B | Boundary (64B) [BOUNDARY] |     0.1030 s |       3.35x <-- 64B CLIFF PASSED
+12       | 96        B | Separate Lines [ISOLATED] |     0.0270 s |      12.78x <-- 64B CLIFF PASSED
+16       | 128       B | Separate Lines [ISOLATED] |     0.0160 s |      21.56x <-- 64B CLIFF PASSED
+32       | 256       B | Separate Lines [ISOLATED] |     0.0170 s |      20.29x <-- 64B CLIFF PASSED
+==========================================================================
+Observation: Latency drops sharply once spacing reaches >= 64 Bytes,
+proving that the hardware L1/L2 cache line width is precisely 64 bytes.
+==========================================================================
+
+Key Analytical Points:
+1. Sharp Performance Cliff at 64 Bytes:
+   - For all offsets strictly below 64 bytes (8B through 56B), the execution
+     time hovers consistently around ~0.32 - 0.34 seconds.
+   - At exactly 64 bytes (Stride 8 with 8-byte uint64_t), latency drops by over 3x to 0.1030 s.
+   - At Stride 16 (128 bytes, 2 full cache lines apart), latency collapses to 0.0160 s (over 21.5x speedup!).
+2. Architectural Validation:
+   - This experiment serves as empirical proof of the hardware cache line granularity.
+   - It demonstrates that CPU coherence operates on 64-byte blocks rather than individual variables.

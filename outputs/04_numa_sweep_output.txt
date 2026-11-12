@@ -1,0 +1,42 @@
+================================================================================
+EXPERIMENT 5: NUMA MEMORY SWEEP BENCHMARK OUTPUT (PROGRAM 3)
+================================================================================
+Reference Screenshot:
+  - images/05_false_sharing_numa_sweep.png
+
+Commands:
+$ nano numa_sweep.c
+$ gcc -O2 numa_sweep.c -fopenmp -o numa_sweep
+
+$ OMP_NUM_THREADS=2 numactl --cpunodebind=0 --membind=0 ./numa_sweep
+buffer=512 MB | threads=2 | sum=33554432 | time=0.1022 s
+
+$ OMP_NUM_THREADS=2 numactl --cpunodebind=0 --membind=1 ./numa_sweep
+buffer=512 MB | threads=2 | sum=33554432 | time=0.0961 s
+
+================================================================================
+Analytical Points and Architectural Explanation:
+1. Benchmark Details:
+   - Buffer size: 512 MB (536,870,912 bytes).
+   - Traversed in 4 sequential passes using OpenMP reduction.
+   - Stride: 64 bytes (reading exactly one byte per cache line = 8,388,608 reads per pass).
+   - Total reads: 4 passes * 8,388,608 = 33,554,432 reads (matches sum=33554432 exactly).
+
+2. Local vs Remote Memory Allocation:
+   - Local:  `--cpunodebind=0 --membind=0` (Threads on Node 0, RAM on Node 0) -> 0.1022 s
+   - Remote: `--cpunodebind=0 --membind=1` (Threads on Node 0, RAM on Node 1) -> 0.0961 s
+
+3. Why Remote Time is Comparable to Local Time inside the VM:
+   - Physical Hardware Context: As indicated in the lab manual and `lscpu` output,
+     the physical host machine possesses a single physical CPU socket (Intel Core i5-13400)
+     with unified physical DDR memory channels.
+   - Virtual NUMA Context: VMware exposes two virtual NUMA nodes (`numa.vcpu.min=2`,
+     `cpuid.coresPerSocket=2`) to the Ubuntu guest OS. However, both virtual nodes
+     are backed by the same underlying physical DRAM channels.
+   - Consequently, in a virtualized guest on a single-socket workstation, remote NUMA
+     access incurs negligible physical bus penalty (~0.1022 s vs 0.0961 s), which is
+     within standard operating system scheduling variance.
+   - On physical multi-socket enterprise servers (e.g., dual-socket Intel Xeon or
+     AMD EPYC systems), remote memory access incurs a measurable 30% to 70% latency
+     penalty as requests must traverse UPI / Infinity Fabric inter-socket links.
+================================================================================

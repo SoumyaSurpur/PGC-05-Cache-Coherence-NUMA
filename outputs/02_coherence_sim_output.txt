@@ -1,0 +1,71 @@
+================================================================================
+EXPERIMENT 5: CACHE COHERENCE SIMULATOR OUTPUT (MSI vs MESI vs MOESI)
+================================================================================
+Reference Screenshot:
+  - images/04_coherence_sim.png
+
+Command:
+$ python3 coherence_sim.py 1000
+
+State trace, first 2 iterations, adjacent layout (line A: core0 state / core1 state)
+
+MSI:
+ core0 R -> C0=S C1=I
+ core0 W -> C0=M C1=I
+ core1 R -> C0=S C1=S
+ core1 W -> C0=I C1=M
+ core0 R -> C0=S C1=S
+ core0 W -> C0=M C1=I
+ core1 R -> C0=S C1=S
+ core1 W -> C0=I C1=M
+
+MESI:
+ core0 R -> C0=E C1=I
+ core0 W -> C0=M C1=I
+ core1 R -> C0=S C1=S
+ core1 W -> C0=I C1=M
+ core0 R -> C0=S C1=S
+ core0 W -> C0=M C1=I
+ core1 R -> C0=S C1=S
+ core1 W -> C0=I C1=M
+
+MOESI:
+ core0 R -> C0=E C1=I
+ core0 W -> C0=M C1=I
+ core1 R -> C0=O C1=S
+ core1 W -> C0=I C1=M
+ core0 R -> C0=S C1=O
+ core0 W -> C0=M C1=I
+ core1 R -> C0=O C1=S
+ core1 W -> C0=I C1=M
+
+Totals for 1000 iterations
+layout    protocol bus transactions            BusRd           BusRdX          BusUpgr    invalidations        writeback              c2c      silent E->M
+adjacent  MSI                4000             2000                0             2000             1999             1999                0                0
+adjacent  MESI               3999             2000                0             1999             1999             1999                0                1
+adjacent  MOESI              3999             2000                0             1999             1999                0             1999                1
+padded    MSI                   4                2                0                2                0                0                0                0
+padded    MESI                  2                2                0                0                0                0                0                2
+padded    MOESI                 2                2                0                0                0                0                0                2
+
+================================================================================
+Key Architectural Observations & Analytical Points:
+1. False Sharing Catastrophe in Adjacent Layout:
+   - When counters x and y share cache line A, 4000 memory operations generate
+     nearly 4000 bus transactions (3999-4000), 1999 invalidations, and 1999 flushes.
+   - Every single write by Core 0 forces Core 1's copy into Invalid ('I') state,
+     and vice-versa, causing extreme bus contention and cache thrashing.
+
+2. Padded Layout (64-byte Alignment) Eliminates Invalidation:
+   - When x and y are padded onto separate cache lines (Lines A and B), total
+     bus transactions collapse from ~4000 down to just 2 to 4!
+   - Invalidations drop to exactly ZERO. Once loaded, each core maintains its
+     private line in Modified ('M') state and writes locally with zero bus overhead.
+
+3. Protocol Differences (MSI vs MESI vs MOESI):
+   - MESI saves 1 bus transaction on the very first private write via the Exclusive (E)
+     state, performing a "Silent E -> M" transition without broadcasting BusUpgr.
+   - MOESI completely eliminates memory writebacks (0 writebacks vs 1999 in MSI/MESI)!
+     Instead, the Owned (O) state enables dirty cache-to-cache (C2C) transfers (1999 C2C),
+     drastically reducing high-latency main memory traffic.
+================================================================================
